@@ -1,9 +1,12 @@
 import unittest
 
 from markdownparser import (
+    BlockType,
+    block_to_block_type,
     extract_markdown_images,
     extract_markdown_links,
     markdown_to_blocks,
+    markdown_to_html_node,
     split_nodes_delimiter,
     split_nodes_image,
     split_nodes_link,
@@ -247,5 +250,125 @@ This is the same paragraph on a new line
             ],
         )
 
+    def test_block_to_block_type_heading(self):
+        for level in range(1, 7):
+            block = "#" * level + " heading"
+            self.assertEqual(block_to_block_type(block), BlockType.HEADING)
+
+    def test_block_to_block_type_heading_invalid(self):
+        self.assertEqual(block_to_block_type("####### too many"), BlockType.PARAGRAPH)
+        self.assertEqual(block_to_block_type("#no space"), BlockType.PARAGRAPH)
+
+    def test_block_to_block_type_code(self):
+        block = "```\nprint('hi')\nx = 1\n```"
+        self.assertEqual(block_to_block_type(block), BlockType.CODE)
+
+    def test_block_to_block_type_code_unclosed(self):
+        block = "```\nprint('hi')"
+        self.assertEqual(block_to_block_type(block), BlockType.PARAGRAPH)
+
+    def test_block_to_block_type_quote(self):
+        block = "> line one\n> line two\n>line three"
+        self.assertEqual(block_to_block_type(block), BlockType.QUOTE)
+
+    def test_block_to_block_type_quote_broken(self):
+        block = "> line one\nnot a quote"
+        self.assertEqual(block_to_block_type(block), BlockType.PARAGRAPH)
+
+    def test_block_to_block_type_unordered_list(self):
+        block = "- item one\n- item two\n- item three"
+        self.assertEqual(block_to_block_type(block), BlockType.UNORDERED_LIST)
+
+    def test_block_to_block_type_unordered_list_broken(self):
+        block = "- item one\nitem two"
+        self.assertEqual(block_to_block_type(block), BlockType.PARAGRAPH)
+
+    def test_block_to_block_type_ordered_list(self):
+        block = "1. first\n2. second\n3. third"
+        self.assertEqual(block_to_block_type(block), BlockType.ORDERED_LIST)
+
+    def test_block_to_block_type_ordered_list_wrong_order(self):
+        self.assertEqual(block_to_block_type("1. a\n3. b"), BlockType.PARAGRAPH)
+        self.assertEqual(block_to_block_type("2. a\n3. b"), BlockType.PARAGRAPH)
+
+    def test_block_to_block_type_paragraph(self):
+        block = "Just a normal paragraph\nwith two lines."
+        self.assertEqual(block_to_block_type(block), BlockType.PARAGRAPH)
+
+    def test_paragraphs(self):
+        md = """
+This is **bolded** paragraph
+text in a p
+tag here
+
+This is another paragraph with _italic_ text and `code` here
+
+"""
+
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
+        )
+
+
+    def test_codeblock(self):
+        md = """
+```
+This is text that _should_ remain
+the **same** even with inline stuff
+```
+"""
+
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><pre><code>This is text that _should_ remain\nthe **same** even with inline stuff\n</code></pre></div>",
+        )
+
+    def test_quoteblock(self):
+        md = """
+> This is **bolded** paragraph
+> text in a p
+> tag here
+> 
+> This is another paragraph with _italic_ text and `code` here
+"""
+
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><blockquote>This is <b>bolded</b> paragraph\ntext in a p\ntag here\n\nThis is another paragraph with <i>italic</i> text and <code>code</code> here</blockquote></div>",
+        )
+
+    def test_ulistblock(self):
+        md = """
+- Lorem ipsum dolor sit amet, consectetur adipiscing elit, 
+- sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+- Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris
+"""
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><ul><li>Lorem ipsum dolor sit amet, consectetur adipiscing elit, </li><li>sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. </li><li>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris</li></ul></div>",
+        )
+
+    def test_olistblock(self):
+        md = """
+1. Lorem ipsum dolor sit amet, consectetur adipiscing elit, 
+2. sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
+3. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris
+"""
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><ol><li>Lorem ipsum dolor sit amet, consectetur adipiscing elit, </li><li>sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. </li><li>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris</li></ol></div>",
+        )
+    
 if __name__ == "__main__":
     unittest.main()
